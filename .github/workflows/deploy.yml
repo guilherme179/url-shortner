@@ -12,10 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
 
       - name: Deploy to Cloudflare Workers
-        run: wrangler deploy --var VERSION:${{ github.ref_name }}
+        run: npx wrangler deploy --var VERSION:${{ github.ref_name }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
