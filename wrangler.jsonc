@@ -25,8 +25,31 @@
 		}
 	],
 	"vars": {
-		"VERSION": "0.0.0"
-	}
+		"VERSION": "0.0.0",
+		"ACCOUNT_ID": "",
+  		"ANALYTICS_TOKEN": ""
+	},
+	"queues": {
+		"producers": [
+			{
+				"queue": "click-events",
+				"binding": "CLICK_EVENTS"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "click-events",
+				"max_batch_size": 10,
+				"max_batch_timeout": 5
+			}
+		]
+	},
+	"analytics_engine_datasets": [
+		{
+			"binding": "ANALYTICS",
+			"dataset": "click_analytics"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
