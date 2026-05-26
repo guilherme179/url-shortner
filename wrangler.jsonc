@@ -25,9 +25,7 @@
 		}
 	],
 	"vars": {
-		"VERSION": "0.0.0",
-		"ACCOUNT_ID": "",
-  		"ANALYTICS_TOKEN": ""
+		"VERSION": "0.0.0"
 	},
 	"queues": {
 		"producers": [
