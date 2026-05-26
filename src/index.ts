@@ -13,24 +13,47 @@ app.get("/message", (c) => {
   return c.text(`Welcome to the URL Shortener API! Use POST /shorten to create a short URL. \r version: ${c.env.VERSION} `);
 });
 
-app.get("/:slug", async (c) => {
-  const slug = c.req.param("slug");
-  const url = await c.env.LINKS.get(slug);
-  
-  if(!url) {
-    return c.notFound();
-  }
+app.get("/stats", async (c) => {
+  const query = `
+    SELECT
+      blob1 AS slug,
+      blob2 AS country,
+      count() AS total_clicks
+    FROM click_analytics
+    GROUP BY slug, country
+    ORDER BY total_clicks DESC
+  `;
 
-  const event: ClickEvent = {
-    slug,
-    country: c.req.header("CF-IPCountry") ?? "unknown",
-    city: c.req.header("CF-IPCity") ?? "unknown",
-    timestamp: Date.now(),
-  };
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${c.env.ACCOUNT_ID}/analytics_engine/sql`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${c.env.ANALYTICS_TOKEN}`,
+        "Content-Type": "text/plain",
+      },
+      body: query,
+    }
+  );
 
-  await c.env.CLICK_EVENTS.send(event);
+  const analytics = await response.json() as { data: { slug: string; country: string; total_clicks: string }[] };
 
-  return c.redirect(url, 302);
+  // Agrupa cliques por slug
+  const slugStats = analytics.data.reduce((acc, row) => {
+    if (!acc[row.slug]) {
+      acc[row.slug] = { total_clicks: 0, countries: {} };
+    }
+    acc[row.slug].total_clicks += Number(row.total_clicks);
+    acc[row.slug].countries[row.country] = Number(row.total_clicks);
+    return acc;
+  }, {} as Record<string, { total_clicks: number; countries: Record<string, number> }>);
+
+  return c.json({
+    version: c.env.VERSION,
+    total_slugs: Object.keys(slugStats).length,
+    total_clicks: Object.values(slugStats).reduce((sum, s) => sum + s.total_clicks, 0),
+    slugs: slugStats,
+  });
 });
 
 app.post("/shorten", async (c) => {
@@ -82,47 +105,24 @@ app.get("/analytics/:slug", async (c) => {
   return c.json(data);
 });
 
-app.get("/stats", async (c) => {
-  const query = `
-    SELECT
-      blob1 AS slug,
-      blob2 AS country,
-      count() AS total_clicks
-    FROM click_analytics
-    GROUP BY slug, country
-    ORDER BY total_clicks DESC
-  `;
+app.get("/:slug", async (c) => {
+  const slug = c.req.param("slug");
+  const url = await c.env.LINKS.get(slug);
+  
+  if(!url) {
+    return c.notFound();
+  }
 
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${c.env.ACCOUNT_ID}/analytics_engine/sql`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${c.env.ANALYTICS_TOKEN}`,
-        "Content-Type": "text/plain",
-      },
-      body: query,
-    }
-  );
+  const event: ClickEvent = {
+    slug,
+    country: c.req.header("CF-IPCountry") ?? "unknown",
+    city: c.req.header("CF-IPCity") ?? "unknown",
+    timestamp: Date.now(),
+  };
 
-  const analytics = await response.json() as { data: { slug: string; country: string; total_clicks: string }[] };
+  await c.env.CLICK_EVENTS.send(event);
 
-  // Agrupa cliques por slug
-  const slugStats = analytics.data.reduce((acc, row) => {
-    if (!acc[row.slug]) {
-      acc[row.slug] = { total_clicks: 0, countries: {} };
-    }
-    acc[row.slug].total_clicks += Number(row.total_clicks);
-    acc[row.slug].countries[row.country] = Number(row.total_clicks);
-    return acc;
-  }, {} as Record<string, { total_clicks: number; countries: Record<string, number> }>);
-
-  return c.json({
-    version: c.env.VERSION,
-    total_slugs: Object.keys(slugStats).length,
-    total_clicks: Object.values(slugStats).reduce((sum, s) => sum + s.total_clicks, 0),
-    slugs: slugStats,
-  });
+  return c.redirect(url, 302);
 });
 
 export default {
