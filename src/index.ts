@@ -56,6 +56,14 @@ app.get("/stats", async (c) => {
   });
 });
 
+app.get("/links", async (c) => {
+  const { results } = await c.env.url_shortener_db
+    .prepare("SELECT slug, url, created_at FROM links ORDER BY created_at DESC")
+    .all();
+
+  return c.json({ total: results.length, links: results });
+});
+
 app.post("/shorten", async (c) => {
   const { slug, url } = await c.req.json();
 
@@ -65,12 +73,19 @@ app.post("/shorten", async (c) => {
 
   const finalSlug = slug || crypto.randomUUID().slice(0, 8);
 
-  const existingUrl = await c.env.LINKS.get(finalSlug);
-  if(existingUrl) {
+  const existing = await c.env.url_shortener_db
+    .prepare("SELECT slug FROM links WHERE slug = ?")
+    .bind(finalSlug)
+    .first();
+
+  if (existing) {
     return c.json({ error: "Slug already exists" }, 409);
   }
 
-  await c.env.LINKS.put(finalSlug, url);
+  await c.env.url_shortener_db
+    .prepare("INSERT INTO links (slug, url) VALUES (?, ?)")
+    .bind(finalSlug, url)
+    .run();
 
   return c.json({ slug: finalSlug, url, short: `${ new URL(c.req.url).origin }/${ finalSlug }` }, 201);
 });
@@ -107,9 +122,13 @@ app.get("/analytics/:slug", async (c) => {
 
 app.get("/:slug", async (c) => {
   const slug = c.req.param("slug");
-  const url = await c.env.LINKS.get(slug);
+  const link = await c.env.url_shortener_db
+    .prepare("SELECT url FROM links WHERE slug = ?")
+    .bind(slug)
+    .first<{ url: string }>();
+
   
-  if(!url) {
+  if(!link) {
     return c.notFound();
   }
 
@@ -122,7 +141,7 @@ app.get("/:slug", async (c) => {
 
   await c.env.CLICK_EVENTS.send(event);
 
-  return c.redirect(url, 302);
+  return c.redirect(link.url, 302);
 });
 
 export default {

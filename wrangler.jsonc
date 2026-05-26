@@ -47,6 +47,13 @@
 			"binding": "ANALYTICS",
 			"dataset": "click_analytics"
 		}
+	],
+	"d1_databases": [
+		{
+			"binding": "url_shortener_db",
+			"database_name": "url-shortener-db",
+			"database_id": "1e1b8540-3706-4cc9-8349-90b709d50ebf"
+		}
 	]
 	/**
 	 * Smart Placement
